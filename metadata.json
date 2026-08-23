@@ -1,0 +1,8 @@
+{
+  "name": "Gelassenheit",
+  "description": "Podcast, Meditationen, 5-Sinne-Achtsamkeit und Selbstreflexion zur Überwindung des inneren Schweinehunds.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

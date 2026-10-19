@@ -53,7 +53,9 @@ import com.example.ui.meditation.MeditationPlayerDialog
 import com.example.ui.mindfulness.MindfulnessScreen
 import com.example.ui.mindfulness.SenseExercisePlayerDialog
 import com.example.ui.podcast.PodcastScreen
+import com.example.ui.pro.GelassenheitProPaywallDialog
 import com.example.ui.reflection.SelfReflectionScreen
+import com.example.ui.tracker.ProgressTrackerScreen
 import com.example.ui.theme.*
 
 class MainActivity : ComponentActivity() {
@@ -79,6 +81,9 @@ fun SchweinehundApp(
     viewModel: MainViewModel = viewModel()
 ) {
     var isEntered by remember { mutableStateOf(false) }
+
+    val isProUser by viewModel.isProUser.collectAsStateWithLifecycle()
+    val showPaywall by viewModel.showPaywall.collectAsStateWithLifecycle()
 
     val activeMeditation by viewModel.activeMeditation.collectAsStateWithLifecycle()
     val meditationRemaining by viewModel.meditationRemainingSeconds.collectAsStateWithLifecycle()
@@ -134,6 +139,20 @@ fun SchweinehundApp(
                 onPause = { viewModel.pauseSenseExercise() },
                 onReset = { viewModel.resetSenseExercise() },
                 onClose = { viewModel.closeSenseExercise() }
+            )
+        }
+
+        // Pro Paywall Subscription Modal
+        if (showPaywall) {
+            GelassenheitProPaywallDialog(
+                isProUser = isProUser,
+                onUnlockPro = { plan ->
+                    viewModel.unlockPro(plan)
+                },
+                onResetProStatus = {
+                    viewModel.resetProStatus()
+                },
+                onDismiss = { viewModel.closePaywall() }
             )
         }
     }
@@ -323,10 +342,13 @@ fun MainContentScreen(
     viewModel: MainViewModel,
     modifier: Modifier = Modifier
 ) {
-    // 4 Tabs: 0 = Podcast, 1 = Meditation, 2 = Achtsamkeit, 3 = Selbstreflexion
+    // 5 Tabs: 0 = Podcast, 1 = Meditation, 2 = Achtsamkeit, 3 = Tracker, 4 = Selbstreflexion
     var selectedTab by remember { mutableIntStateOf(0) }
 
+    val isProUser by viewModel.isProUser.collectAsStateWithLifecycle()
+    val streakDays by viewModel.streakDays.collectAsStateWithLifecycle()
     val podcastEpisode by viewModel.podcastEpisode.collectAsStateWithLifecycle()
+    val allEpisodes by viewModel.allPodcastEpisodes.collectAsStateWithLifecycle()
     val isPodcastPlaying by viewModel.isPodcastPlaying.collectAsStateWithLifecycle()
     val podcastPosition by viewModel.podcastPositionSeconds.collectAsStateWithLifecycle()
     val podcastSpeed by viewModel.podcastPlaybackSpeed.collectAsStateWithLifecycle()
@@ -355,8 +377,8 @@ fun MainContentScreen(
             ) {
                 Column {
                     Text(
-                        text = "STATUS: IM EINKLANG",
-                        color = LightCerulean.copy(alpha = 0.8f),
+                        text = if (isProUser) "STATUS: PRO MITGLIED" else "STATUS: IM EINKLANG",
+                        color = if (isProUser) ProGoldLight else LightCerulean.copy(alpha = 0.8f),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.SemiBold,
                         letterSpacing = 2.sp
@@ -367,7 +389,8 @@ fun MainContentScreen(
                             0 -> "Deep Dive Podcast"
                             1 -> "Meditationen"
                             2 -> "Achtsamkeit & Sinne"
-                            3 -> "Selbstreflexion"
+                            3 -> "Fortschritt & Ziele"
+                            4 -> "Selbstreflexion"
                             else -> "Gelassenheit"
                         },
                         color = TextPrimary,
@@ -377,20 +400,57 @@ fun MainContentScreen(
                     )
                 }
 
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(ImmersiveSurfaceAlt)
-                        .border(1.dp, ImmersiveBorderHighlight, RoundedCornerShape(16.dp)),
-                    contentAlignment = Alignment.Center
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = "Profil",
-                        tint = SoftIceBlue,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    // Quick Streak Pill
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(ProAmberSurface)
+                            .border(1.dp, ProAmberBorder, RoundedCornerShape(16.dp))
+                            .clickable { selectedTab = 3 }
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("🔥", fontSize = 12.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "$streakDays",
+                                color = ProGoldLight,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    // PRO Button / Badge
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(if (isProUser) ProAmberSurface else ElectricIndigo.copy(alpha = 0.25f))
+                            .border(
+                                1.dp,
+                                if (isProUser) ProGold else SoftIceBlue.copy(alpha = 0.3f),
+                                RoundedCornerShape(16.dp)
+                            )
+                            .clickable { viewModel.openPaywall() }
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("👑", fontSize = 14.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (isProUser) "PRO AKTIV" else "PRO",
+                                color = if (isProUser) ProGoldLight else SoftIceBlue,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
             }
 
@@ -399,6 +459,10 @@ fun MainContentScreen(
                 when (selectedTab) {
                     0 -> PodcastScreen(
                         episode = podcastEpisode,
+                        allEpisodes = allEpisodes,
+                        isProUser = isProUser,
+                        onSelectEpisode = { viewModel.selectPodcastEpisode(it) },
+                        onOpenPaywall = { viewModel.openPaywall() },
                         isPlaying = isPodcastPlaying,
                         positionSeconds = podcastPosition,
                         playbackSpeed = podcastSpeed,
@@ -411,13 +475,22 @@ fun MainContentScreen(
                         onNavigateToMindfulness = { selectedTab = 2 }
                     )
                     1 -> MeditationLibraryScreen(
+                        isProUser = isProUser,
+                        onOpenPaywall = { viewModel.openPaywall() },
                         onSelectMeditation = { viewModel.openMeditation(it) }
                     )
                     2 -> MindfulnessScreen(
+                        isProUser = isProUser,
+                        onOpenPaywall = { viewModel.openPaywall() },
                         onSelectExercise = { viewModel.openSenseExercise(it) },
                         onOpenPodcast = { selectedTab = 0 }
                     )
-                    3 -> SelfReflectionScreen(
+                    3 -> ProgressTrackerScreen(
+                        viewModel = viewModel,
+                        onNavigateToMeditation = { selectedTab = 1 },
+                        onNavigateToReflection = { selectedTab = 4 }
+                    )
+                    4 -> SelfReflectionScreen(
                         challenges = challenges,
                         completedCount = completedChallengesCount,
                         totalCount = totalChallengesCount,
@@ -677,7 +750,8 @@ fun ImmersiveNavigationBar(
         NavItem("Podcast", Icons.Default.Podcasts),
         NavItem("Meditation", Icons.Default.SelfImprovement),
         NavItem("Achtsamkeit", Icons.Default.Sensors),
-        NavItem("Selbstreflexion", Icons.Default.AutoStories)
+        NavItem("Tracker", Icons.Default.EmojiEvents),
+        NavItem("Reflexion", Icons.Default.AutoStories)
     )
 
     Box(

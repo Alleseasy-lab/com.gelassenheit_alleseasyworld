@@ -33,6 +33,8 @@ import com.example.ui.theme.*
 
 @Composable
 fun MindfulnessScreen(
+    isProUser: Boolean = false,
+    onOpenPaywall: () -> Unit = {},
     onSelectExercise: (SenseExercise) -> Unit,
     onOpenPodcast: () -> Unit,
     modifier: Modifier = Modifier
@@ -123,6 +125,60 @@ fun MindfulnessScreen(
             }
         }
 
+        // PRO Upgrade Banner (if not PRO)
+        if (!isProUser) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(ProAmberSurface, ImmersiveSurfaceAlt)
+                            )
+                        )
+                        .border(1.dp, ProAmberBorder, RoundedCornerShape(20.dp))
+                        .clickable { onOpenPaywall() }
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Text("👑", fontSize = 24.sp)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "Spezielle Somatic & Neuro-Übungen",
+                                    color = ProGoldLight,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Inkl. Somatic Vagus & 5-Sinne Binaural Training",
+                                    color = TextSecondary,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                        Button(
+                            onClick = onOpenPaywall,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = ProGold,
+                                contentColor = Color.Black
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text("PRO", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
         // Section Title: Senses Exercises
         item {
             Row(
@@ -138,7 +194,7 @@ fun MindfulnessScreen(
                     letterSpacing = 1.5.sp
                 )
                 Text(
-                    text = "5 Module",
+                    text = "${MindfulnessCatalog.senseExercises.size} Module",
                     color = LightCerulean,
                     fontSize = 12.sp
                 )
@@ -149,6 +205,7 @@ fun MindfulnessScreen(
         items(MindfulnessCatalog.senseExercises, key = { it.id }) { exercise ->
             SenseExerciseCard(
                 exercise = exercise,
+                isProUser = isProUser,
                 onClick = { onSelectExercise(exercise) }
             )
         }
@@ -212,14 +269,21 @@ fun MindfulnessScreen(
 @Composable
 fun SenseExerciseCard(
     exercise: SenseExercise,
+    isProUser: Boolean = false,
     onClick: () -> Unit
 ) {
+    val isLocked = exercise.isProOnly && !isProUser
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(22.dp))
-            .background(ImmersiveSurface.copy(alpha = 0.85f))
-            .border(1.dp, ImmersiveSurfaceBorder, RoundedCornerShape(22.dp))
+            .background(if (exercise.isProOnly) ProAmberSurface.copy(alpha = 0.35f) else ImmersiveSurface.copy(alpha = 0.85f))
+            .border(
+                1.dp,
+                if (exercise.isProOnly) ProAmberBorder else ImmersiveSurfaceBorder,
+                RoundedCornerShape(22.dp)
+            )
             .clickable { onClick() }
             .padding(18.dp)
     ) {
@@ -231,8 +295,12 @@ fun SenseExerciseCard(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(CircleShape)
-                    .background(ElectricIndigo.copy(alpha = 0.25f))
-                    .border(1.dp, SoftIceBlue.copy(alpha = 0.3f), CircleShape),
+                    .background(if (exercise.isProOnly) ProAmberSurface else ElectricIndigo.copy(alpha = 0.25f))
+                    .border(
+                        1.dp,
+                        if (exercise.isProOnly) ProGold.copy(alpha = 0.6f) else SoftIceBlue.copy(alpha = 0.3f),
+                        CircleShape
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Text(exercise.iconEmoji, fontSize = 22.sp)
@@ -246,13 +314,32 @@ fun SenseExerciseCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = exercise.senseName.uppercase(),
-                        color = LightCerulean,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.2.sp
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = exercise.senseName.uppercase(),
+                            color = if (exercise.isProOnly) ProGoldLight else LightCerulean,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.2.sp
+                        )
+                        if (exercise.isProOnly) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(ProGold.copy(alpha = 0.25f))
+                                    .border(0.5.dp, ProGold, RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 5.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "PRO",
+                                    color = ProGoldLight,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                            }
+                        }
+                    }
                     Text(
                         text = "${exercise.practiceDurationSeconds / 60} Min",
                         color = TextMuted,
@@ -285,15 +372,24 @@ fun SenseExerciseCard(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(ImmersiveSurfaceAlt),
+                    .background(if (isLocked) ImmersiveSurfaceAlt else if (exercise.isProOnly) ProGold else ImmersiveSurfaceAlt),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.PlayArrow,
-                    contentDescription = "Übung starten",
-                    tint = SoftIceBlue,
-                    modifier = Modifier.size(18.dp)
-                )
+                if (isLocked) {
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = "Gesperrt (PRO)",
+                        tint = ProGold,
+                        modifier = Modifier.size(16.dp)
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = "Übung starten",
+                        tint = if (exercise.isProOnly) Color.Black else SoftIceBlue,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
         }
     }

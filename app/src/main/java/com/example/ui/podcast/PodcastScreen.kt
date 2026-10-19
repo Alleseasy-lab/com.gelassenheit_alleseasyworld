@@ -7,16 +7,20 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -31,9 +35,26 @@ import com.example.podcast.PodcastChapter
 import com.example.podcast.PodcastEpisode
 import com.example.ui.theme.*
 
+// ─── Design Tokens (1:1 mit Flutter Theme) ───────────────────────────────────
+private val DarkBg         = Color(0xFF070A12)
+private val CardBg         = Color(0xFF10172A)
+private val CardSubBg      = Color(0xFF1E293B)
+private val CardBorder     = Color.White.copy(alpha = 0.06f)
+private val BlueGreyText   = Color(0xFF94A3B8)
+private val TextWhite70    = Color.White.copy(alpha = 0.70f)
+private val TextWhite54    = Color.White.copy(alpha = 0.54f)
+private val AccentGreen    = Color(0xFF69F0AE) // Colors.greenAccent
+private val AccentBlue     = Color(0xFF3B82F6) // Colors.blueAccent
+private val AccentPurple   = Color(0xFF8B5CF6)
+private val AccentAmber    = Color(0xFFFFD54F) // Colors.amberAccent
+
 @Composable
 fun PodcastScreen(
     episode: PodcastEpisode,
+    allEpisodes: List<PodcastEpisode> = emptyList(),
+    isProUser: Boolean = false,
+    onSelectEpisode: (PodcastEpisode) -> Unit = {},
+    onOpenPaywall: () -> Unit = {},
     isPlaying: Boolean,
     positionSeconds: Int,
     playbackSpeed: Float,
@@ -49,13 +70,183 @@ fun PodcastScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
+            .background(DarkBg)
             .padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(bottom = 24.dp)
+        contentPadding = PaddingValues(top = 4.dp, bottom = 28.dp)
     ) {
-        // Hero Podcast Player Card
+        // ── PRO Banner falls nicht abonniert ──────────────────────────────────
+        if (!isProUser) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(ProAmberSurface, ImmersiveSurfaceAlt)
+                            )
+                        )
+                        .border(1.dp, ProAmberBorder, RoundedCornerShape(20.dp))
+                        .clickable { onOpenPaywall() }
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Text("🎧", fontSize = 22.sp)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "Einfach nur zuhören & Klangbäder",
+                                    color = ProGoldLight,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Schalte 432 Hz Soundbaths & PRO-Episoden frei",
+                                    color = TextSecondary,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                        Button(
+                            onClick = onOpenPaywall,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = ProGold,
+                                contentColor = Color.Black
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text("PRO", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Audio / Episode Auswahlliste (Horizontal Chips) ──────────────────
+        if (allEpisodes.isNotEmpty()) {
+            item {
+                Column {
+                    Text(
+                        text = "AUDIO-MEDITATION & PODCAST-AUSWAHL",
+                        color = BlueGreyText,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.8.sp,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(allEpisodes) { ep ->
+                            val isSelected = ep.id == episode.id
+                            val isLocked = ep.isProOnly && !isProUser
+
+                            Box(
+                                modifier = Modifier
+                                    .width(220.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(
+                                        if (isSelected) ElectricIndigo.copy(alpha = 0.35f)
+                                        else if (ep.isProOnly) ProAmberSurface.copy(alpha = 0.25f)
+                                        else CardBg
+                                    )
+                                    .border(
+                                        1.dp,
+                                        if (isSelected) SoftIceBlue
+                                        else if (ep.isProOnly) ProAmberBorder
+                                        else CardBorder,
+                                        RoundedCornerShape(16.dp)
+                                    )
+                                    .clickable {
+                                        if (isLocked) {
+                                            onOpenPaywall()
+                                        } else {
+                                            onSelectEpisode(ep)
+                                        }
+                                    }
+                                    .padding(12.dp)
+                            ) {
+                                Column {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = ep.category.uppercase(),
+                                            color = if (ep.isProOnly) ProGoldLight else LightCerulean,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            letterSpacing = 1.sp
+                                        )
+
+                                        if (ep.isProOnly) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(ProGold.copy(alpha = 0.2f))
+                                                    .border(0.5.dp, ProGold, RoundedCornerShape(6.dp))
+                                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    if (isLocked) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Lock,
+                                                            contentDescription = "Gesperrt",
+                                                            tint = ProGold,
+                                                            modifier = Modifier.size(10.dp)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(2.dp))
+                                                    }
+                                                    Text(
+                                                        text = "PRO",
+                                                        color = ProGoldLight,
+                                                        fontSize = 8.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(6.dp))
+
+                                    Text(
+                                        text = ep.title,
+                                        color = Color.White,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+
+                                    Spacer(modifier = Modifier.height(2.dp))
+
+                                    Text(
+                                        text = "${ep.durationSeconds / 60} Min",
+                                        color = BlueGreyText,
+                                        fontSize = 10.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Hauptkarte für den Podcast-Player ────────────────────────────────
         item {
-            PodcastHeroPlayerCard(
+            ContainerPodcastPlayer(
                 episode = episode,
                 isPlaying = isPlaying,
                 positionSeconds = positionSeconds,
@@ -68,65 +259,63 @@ fun PodcastScreen(
             )
         }
 
-        // Bridge to Practice Callout
+        // ── Sekundäre Info-Card (Brücke zur 5-Sinne-Übung) ────────────────────
         item {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(
-                        Brush.horizontalGradient(
-                            listOf(ElectricIndigo.copy(alpha = 0.35f), ImmersiveSurfaceAlt)
-                        )
-                    )
-                    .border(1.dp, SoftIceBlue.copy(alpha = 0.3f), RoundedCornerShape(22.dp))
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(CardBg)
+                    .border(1.dp, CardBorder, RoundedCornerShape(18.dp))
                     .clickable { onNavigateToMindfulness() }
                     .padding(16.dp)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                        Box(
-                            modifier = Modifier
-                                .size(42.dp)
-                                .clip(CircleShape)
-                                .background(SoftIceBlue.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("🖐️", fontSize = 20.sp)
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = "VOM HÖREN INS SPÜREN",
-                                color = LightCerulean,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.2.sp
-                            )
-                            Text(
-                                text = "5-Sinne-Übungen aus dem Podcast starten",
-                                color = TextPrimary,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(CardSubBg),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("🖐️", fontSize = 20.sp)
                     }
+
+                    Spacer(modifier = Modifier.width(14.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "VOM HÖREN INS SPÜREN",
+                            color = AccentAmber,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.8.sp
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "5-Sinne-Übungen aus dem Podcast starten",
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
                     Icon(
-                        imageVector = Icons.Default.ArrowForward,
-                        contentDescription = "Zur Praxis",
-                        tint = SoftIceBlue,
-                        modifier = Modifier.size(18.dp)
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                        contentDescription = "Starten",
+                        tint = TextWhite54,
+                        modifier = Modifier.size(14.dp)
                     )
                 }
             }
         }
 
-        // Section Title: Chapters
+        // ── Kapitel & Themen Sektion Header ──────────────────────────────────
         item {
+            Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -134,23 +323,23 @@ fun PodcastScreen(
             ) {
                 Text(
                     text = "KAPITEL & THEMEN",
-                    color = TextMuted,
+                    color = BlueGreyText,
                     fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 1.5.sp
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp
                 )
                 Text(
                     text = "${episode.chapters.size} Abschnitte",
-                    color = LightCerulean,
-                    fontSize = 12.sp
+                    color = TextWhite54,
+                    fontSize = 11.sp
                 )
             }
         }
 
-        // Chapter List items
+        // ── Kapitel-Listenelemente ───────────────────────────────────────────
         itemsIndexed(episode.chapters) { index, chapter ->
             val isActive = index == activeChapterIndex
-            ChapterItemCard(
+            ChapterListItem(
                 chapter = chapter,
                 isActive = isActive,
                 isPlaying = isPlaying,
@@ -158,26 +347,25 @@ fun PodcastScreen(
             )
         }
 
-        // Section Title: Key Insights & Takeaways
+        // ── Kernerkenntnisse & Kernaussagen ──────────────────────────────────
         item {
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = "KERNERKENNTNISSE AUS DER EPISODE",
-                color = TextMuted,
+                color = BlueGreyText,
                 fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 1.5.sp
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.8.sp
             )
         }
 
-        // Takeaways Cards
         itemsIndexed(episode.keyTakeaways) { idx, takeaway ->
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(18.dp))
-                    .background(ImmersiveSurface.copy(alpha = 0.75f))
-                    .border(1.dp, ImmersiveSurfaceBorder, RoundedCornerShape(18.dp))
+                    .background(CardBg)
+                    .border(1.dp, CardBorder, RoundedCornerShape(18.dp))
                     .padding(16.dp)
             ) {
                 Row(verticalAlignment = Alignment.Top) {
@@ -185,15 +373,20 @@ fun PodcastScreen(
                         modifier = Modifier
                             .size(24.dp)
                             .clip(CircleShape)
-                            .background(ElectricIndigo.copy(alpha = 0.4f)),
+                            .background(AccentBlue.copy(alpha = 0.2f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("${idx + 1}", color = SoftIceBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            "${idx + 1}",
+                            color = AccentBlue,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
                         text = takeaway,
-                        color = TextSecondary,
+                        color = BlueGreyText,
                         fontSize = 13.sp,
                         lineHeight = 19.sp
                     )
@@ -201,15 +394,15 @@ fun PodcastScreen(
             }
         }
 
-        // Core Quotes
+        // ── Zitate zum Verinnerlichen ────────────────────────────────────────
         item {
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = "ZITATE ZUM VERINNERLICHEN",
-                color = TextMuted,
+                color = BlueGreyText,
                 fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 1.5.sp
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.8.sp
             )
         }
 
@@ -217,9 +410,9 @@ fun PodcastScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(ImmersiveSurfaceAlt)
-                    .border(1.dp, ElectricIndigo.copy(alpha = 0.35f), RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(CardBg)
+                    .border(1.dp, CardBorder, RoundedCornerShape(18.dp))
                     .padding(18.dp)
             ) {
                 Column {
@@ -227,13 +420,13 @@ fun PodcastScreen(
                         Icon(
                             imageVector = Icons.Default.FormatQuote,
                             contentDescription = "Zitat",
-                            tint = LightCerulean,
+                            tint = AccentBlue,
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = "Kapitel @ ${quote.timestamp}",
-                            color = LightCerulean,
+                            color = AccentBlue,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -241,10 +434,10 @@ fun PodcastScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "„${quote.quote}“",
-                        color = TextPrimary,
-                        fontSize = 14.sp,
+                        color = Color.White,
+                        fontSize = 13.sp,
                         fontStyle = FontStyle.Italic,
-                        lineHeight = 21.sp,
+                        lineHeight = 20.sp,
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -253,8 +446,9 @@ fun PodcastScreen(
     }
 }
 
+// ─── Hauptkarte Podcast-Player (1:1 Flutter Struktur) ────────────────────────
 @Composable
-fun PodcastHeroPlayerCard(
+fun ContainerPodcastPlayer(
     episode: PodcastEpisode,
     isPlaying: Boolean,
     positionSeconds: Int,
@@ -270,20 +464,16 @@ fun PodcastHeroPlayerCard(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(32.dp))
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        ImmersiveSurface.copy(alpha = 0.95f),
-                        ImmersiveSurfaceAlt.copy(alpha = 0.95f)
-                    )
-                )
-            )
-            .border(1.dp, ImmersiveSurfaceBorder, RoundedCornerShape(32.dp))
-            .padding(22.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(CardBg)
+            .border(1.dp, CardBorder, RoundedCornerShape(24.dp))
+            .padding(20.dp)
     ) {
-        Column {
-            // Header Row with Episode Badge & Speed
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.Start
+        ) {
+            // Episoden-Info & Speed-Button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -292,32 +482,30 @@ fun PodcastHeroPlayerCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .size(10.dp)
+                            .size(8.dp)
                             .clip(CircleShape)
-                            .background(if (isPlaying) Color(0xFF00E676) else TextMuted)
+                            .background(AccentGreen)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "DEEP DIVE EPISODE 01",
-                        color = LightCerulean,
+                        color = AccentGreen,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.5.sp
+                        letterSpacing = 0.8.sp
                     )
                 }
 
-                // Speed Pill
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
-                        .background(ElectricIndigo.copy(alpha = 0.25f))
-                        .border(1.dp, SoftIceBlue.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                        .background(CardSubBg)
                         .clickable { onCycleSpeed() }
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
                     Text(
                         text = "${playbackSpeed}x",
-                        color = SoftIceBlue,
+                        color = TextWhite70,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -326,50 +514,45 @@ fun PodcastHeroPlayerCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Title & Subtitle
+            // Titel & Beschreibung
             Text(
                 text = episode.title,
-                color = TextPrimary,
+                color = Color.White,
                 fontSize = 20.sp,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = (-0.3).sp
+                fontWeight = FontWeight.Bold
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             Text(
                 text = episode.subtitle,
-                color = TextSecondary,
+                color = BlueGreyText,
                 fontSize = 13.sp,
-                lineHeight = 18.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+                lineHeight = 18.sp
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Active Chapter Indicator
+            // Aktives Kapitel Badge
             if (activeChapter != null) {
+                Spacer(modifier = Modifier.height(12.dp))
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(ImmersiveBg.copy(alpha = 0.6f))
-                        .border(1.dp, ImmersiveBorderHighlight, RoundedCornerShape(14.dp))
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(CardSubBg)
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = Icons.Default.GraphicEq,
                             contentDescription = "Kapitel",
-                            tint = SoftIceBlue,
-                            modifier = Modifier.size(16.dp)
+                            tint = AccentBlue,
+                            modifier = Modifier.size(14.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = activeChapter.title,
-                            color = SoftIceBlue,
-                            fontSize = 12.sp,
+                            color = Color.White,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Medium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -380,17 +563,7 @@ fun PodcastHeroPlayerCard(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // Animated Equalizer Waveform
-            AudioWaveformVisualizer(
-                isPlaying = isPlaying,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(36.dp)
-            )
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Scrubber Slider
+            // Fortschrittsleiste / Slider
             val progress = if (episode.durationSeconds > 0) {
                 (positionSeconds.toFloat() / episode.durationSeconds.toFloat()).coerceIn(0f, 1f)
             } else 0f
@@ -401,65 +574,72 @@ fun PodcastHeroPlayerCard(
                     onSeekTo((newProg * episode.durationSeconds).toInt())
                 },
                 colors = SliderDefaults.colors(
-                    thumbColor = SoftIceBlue,
-                    activeTrackColor = LightCerulean,
-                    inactiveTrackColor = ImmersiveSurfaceBorder
+                    thumbColor = Color.White,
+                    activeTrackColor = AccentBlue,
+                    inactiveTrackColor = CardSubBg
                 ),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(24.dp)
             )
 
-            // Time Labels
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = formatPodcastTime(positionSeconds),
-                    color = TextMuted,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium
-                )
-                Text(
-                    text = formatPodcastTime(episode.durationSeconds),
-                    color = TextMuted,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium
-                )
+            PaddingValues(horizontal = 4.dp).let {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = formatPodcastTime(positionSeconds),
+                        color = BlueGreyText,
+                        fontSize = 11.sp
+                    )
+                    Text(
+                        text = formatPodcastTime(episode.durationSeconds),
+                        color = BlueGreyText,
+                        fontSize = 11.sp
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // Control Buttons: -15s, Play/Pause, +15s
+            // Player Controls (Zurückspringen, Play/Pause mit Gradient & Shadow, Vorspringen)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // -15s
                 IconButton(
-                    onClick = { onSkip(-15) },
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(ImmersiveSurfaceAlt)
+                    onClick = { onSkip(-10) },
+                    modifier = Modifier.size(44.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Replay10,
-                        contentDescription = "15 Sek zurück",
-                        tint = TextSecondary
+                        contentDescription = "10s zurück",
+                        tint = TextWhite70,
+                        modifier = Modifier.size(28.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.width(20.dp))
+                Spacer(modifier = Modifier.width(24.dp))
 
-                // Play / Pause Main Button
                 Box(
                     modifier = Modifier
                         .size(64.dp)
+                        .shadow(
+                            elevation = 12.dp,
+                            shape = CircleShape,
+                            ambientColor = AccentBlue.copy(alpha = 0.3f),
+                            spotColor = AccentBlue.copy(alpha = 0.5f)
+                        )
                         .clip(CircleShape)
                         .background(
-                            Brush.radialGradient(
-                                listOf(SoftIceBlue, ElectricIndigo)
+                            Brush.linearGradient(
+                                colors = listOf(AccentBlue, AccentPurple),
+                                start = Offset.Zero,
+                                end = Offset.Infinite
                             )
                         )
                         .clickable { onTogglePlayPause() },
@@ -467,26 +647,23 @@ fun PodcastHeroPlayerCard(
                 ) {
                     Icon(
                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = if (isPlaying) "Pause" else "Abspielen",
-                        tint = DeepIndigoText,
+                        contentDescription = if (isPlaying) "Pause" else "Play",
+                        tint = Color.White,
                         modifier = Modifier.size(32.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.width(20.dp))
+                Spacer(modifier = Modifier.width(24.dp))
 
-                // +15s
                 IconButton(
-                    onClick = { onSkip(15) },
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(ImmersiveSurfaceAlt)
+                    onClick = { onSkip(10) },
+                    modifier = Modifier.size(44.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Forward10,
-                        contentDescription = "15 Sek vor",
-                        tint = TextSecondary
+                        contentDescription = "10s vor",
+                        tint = TextWhite70,
+                        modifier = Modifier.size(28.dp)
                     )
                 }
             }
@@ -494,22 +671,24 @@ fun PodcastHeroPlayerCard(
     }
 }
 
+// ─── Kapitel-Listenelement (1:1 Flutter Struktur) ────────────────────────────
 @Composable
-fun ChapterItemCard(
+fun ChapterListItem(
     chapter: PodcastChapter,
     isActive: Boolean,
     isPlaying: Boolean,
     onClick: () -> Unit
 ) {
-    val borderColor = if (isActive) ElectricIndigo.copy(alpha = 0.7f) else ImmersiveSurfaceBorder
-    val bgColor = if (isActive) ImmersiveSurfaceAlt else ImmersiveSurface.copy(alpha = 0.65f)
-
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(bgColor)
-            .border(1.dp, borderColor, RoundedCornerShape(18.dp))
+            .background(CardBg)
+            .border(
+                width = 1.dp,
+                color = if (isActive) AccentBlue.copy(alpha = 0.4f) else CardBorder,
+                shape = RoundedCornerShape(18.dp)
+            )
             .clickable { onClick() }
             .padding(16.dp)
     ) {
@@ -519,24 +698,24 @@ fun ChapterItemCard(
         ) {
             Box(
                 modifier = Modifier
-                    .size(36.dp)
+                    .size(40.dp)
                     .clip(CircleShape)
-                    .background(if (isActive) ElectricIndigo.copy(alpha = 0.5f) else ImmersiveBg),
+                    .background(AccentBlue.copy(alpha = 0.2f)),
                 contentAlignment = Alignment.Center
             ) {
                 if (isActive && isPlaying) {
                     Icon(
                         imageVector = Icons.Default.GraphicEq,
                         contentDescription = "Spielt",
-                        tint = SoftIceBlue,
-                        modifier = Modifier.size(18.dp)
+                        tint = AccentBlue,
+                        modifier = Modifier.size(20.dp)
                     )
                 } else {
                     Icon(
                         imageVector = Icons.Default.PlayArrow,
-                        contentDescription = "Kapitel anspringen",
-                        tint = if (isActive) SoftIceBlue else TextMuted,
-                        modifier = Modifier.size(18.dp)
+                        contentDescription = "Abspielen",
+                        tint = AccentBlue,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
@@ -546,62 +725,20 @@ fun ChapterItemCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = chapter.title,
-                    color = if (isActive) SoftIceBlue else TextPrimary,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = chapter.summary,
-                    color = TextSecondary,
-                    fontSize = 12.sp,
-                    lineHeight = 17.sp
+                    color = BlueGreyText,
+                    fontSize = 11.sp,
+                    lineHeight = 16.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
-        }
-    }
-}
-
-@Composable
-fun AudioWaveformVisualizer(
-    isPlaying: Boolean,
-    modifier: Modifier = Modifier
-) {
-    val transition = rememberInfiniteTransition(label = "wave")
-    val phase by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "phase"
-    )
-
-    Canvas(modifier = modifier) {
-        val barCount = 28
-        val spacing = size.width / barCount
-        val barWidth = spacing * 0.55f
-
-        for (i in 0 until barCount) {
-            val normalizedI = i.toFloat() / barCount
-            val wave = if (isPlaying) {
-                val sinVal = kotlin.math.sin((normalizedI * 4 + phase * 2 * kotlin.math.PI).toFloat())
-                (sinVal * 0.5f + 0.5f) * 0.7f + 0.3f
-            } else {
-                0.25f + (i % 3) * 0.08f
-            }
-
-            val barHeight = size.height * wave
-            val top = (size.height - barHeight) / 2
-            val left = i * spacing + (spacing - barWidth) / 2
-
-            drawRoundRect(
-                color = if (isPlaying) LightCerulean.copy(alpha = 0.85f) else TextMuted.copy(alpha = 0.4f),
-                topLeft = Offset(left, top),
-                size = Size(barWidth, barHeight),
-                cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
-            )
         }
     }
 }

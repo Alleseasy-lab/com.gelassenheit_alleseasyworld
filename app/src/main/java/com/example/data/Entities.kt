@@ -38,3 +38,21 @@ data class MeditationRecord(
     val durationSeconds: Int,
     val timestamp: Long = System.currentTimeMillis()
 )
+
+@Entity(tableName = "user_goals")
+data class UserGoal(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val title: String,
+    val description: String = "",
+    val targetType: String = "CUSTOM", // "MEDITATION", "GRATITUDE", "CHALLENGE", "MINDFULNESS", "PODCAST", "CUSTOM"
+    val targetValue: Int = 1,
+    val currentValue: Int = 0,
+    val unit: String = "Einheit", // "Minuten", "Einträge", "Übungen", "Episoden", "Tage"
+    val period: String = "DAILY", // "DAILY", "WEEKLY"
+    val iconEmoji: String = "🎯",
+    val category: String = "Gelassenheit", // "Gelassenheit", "Dankbarkeit", "Achtsamkeit", "Fokus"
+    val isCompleted: Boolean = false,
+    val completedAt: Long? = null,
+    val createdAt: Long = System.currentTimeMillis()
+)

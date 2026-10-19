@@ -56,3 +56,33 @@ interface MeditationDao {
     @Query("SELECT COALESCE(SUM(durationSeconds), 0) FROM meditation_records")
     fun getTotalMeditationSeconds(): Flow<Int>
 }
+
+@Dao
+interface GoalDao {
+    @Query("SELECT * FROM user_goals ORDER BY isCompleted ASC, id DESC")
+    fun getAllGoals(): Flow<List<UserGoal>>
+
+    @Query("SELECT * FROM user_goals WHERE period = :period ORDER BY isCompleted ASC, id DESC")
+    fun getGoalsByPeriod(period: String): Flow<List<UserGoal>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertGoal(goal: UserGoal): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(goals: List<UserGoal>)
+
+    @Update
+    suspend fun updateGoal(goal: UserGoal)
+
+    @Delete
+    suspend fun deleteGoal(goal: UserGoal)
+
+    @Query("UPDATE user_goals SET currentValue = :value, isCompleted = :completed, completedAt = :completedAt WHERE id = :id")
+    suspend fun updateProgress(id: Long, value: Int, completed: Boolean, completedAt: Long?)
+
+    @Query("SELECT COUNT(*) FROM user_goals WHERE isCompleted = 1")
+    fun getCompletedGoalsCount(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM user_goals")
+    fun getTotalGoalsCount(): Flow<Int>
+}

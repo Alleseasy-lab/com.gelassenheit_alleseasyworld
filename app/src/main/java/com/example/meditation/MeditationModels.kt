@@ -11,15 +11,16 @@ data class Meditation(
     val title: String,
     val subtitle: String,
     val description: String,
-    val category: String, // "Stressabbau", "Achtsamkeit", "Einschlafhilfe", "Ausgeglichenheit"
+    val category: String, // "Stressabbau", "Achtsamkeit", "Einschlafhilfe", "Ausgeglichenheit", "Soundbath"
     val defaultMinutes: Int,
     val iconEmoji: String,
     val ambientFrequencyHz: Double = 432.0,
+    val isProOnly: Boolean = false,
     val guidedSteps: List<GuidedStep>
 )
 
 object MeditationCatalog {
-    val categories = listOf("Alle", "Stressabbau", "Achtsamkeit", "Einschlafhilfe", "Ausgeglichenheit")
+    val categories = listOf("Alle", "Stressabbau", "Achtsamkeit", "Einschlafhilfe", "Ausgeglichenheit", "Soundbath")
 
     val meditations = listOf(
         Meditation(
@@ -31,6 +32,7 @@ object MeditationCatalog {
             defaultMinutes = 5,
             iconEmoji = "🌊",
             ambientFrequencyHz = 432.0,
+            isProOnly = false,
             guidedSteps = listOf(
                 GuidedStep(
                     title = "Ankommen im Hier und Jetzt",
@@ -63,6 +65,7 @@ object MeditationCatalog {
             defaultMinutes = 8,
             iconEmoji = "🤝",
             ambientFrequencyHz = 528.0,
+            isProOnly = false,
             guidedSteps = listOf(
                 GuidedStep(
                     title = "Den Widerstand wahrnehmen",
@@ -87,14 +90,43 @@ object MeditationCatalog {
             )
         ),
         Meditation(
+            id = "balance_1",
+            title = "Zentrierung & Fokus",
+            subtitle = "Harmonie zwischen Herz, Verstand und Tatkraft",
+            description = "Eine erfrischende Auszeit, um deine mentale Mitte wiederzufinden. Bringt Ausgeglichenheit und frische Motivation für deine nächsten Vorhaben.",
+            category = "Ausgeglichenheit",
+            defaultMinutes = 5,
+            iconEmoji = "⚡",
+            ambientFrequencyHz = 432.0,
+            isProOnly = false,
+            guidedSteps = listOf(
+                GuidedStep(
+                    title = "Aufrichtung & Klarheit",
+                    instruction = "Spüre den Boden unter deinen Füßen. Richte deinen Scheitelpunkt nach oben. Atme Frische und Weite ein.",
+                    breathPhase = "Einatmen (4s)"
+                ),
+                GuidedStep(
+                    title = "Fokus im Zentrum",
+                    instruction = "Bündle deine Aufmerksamkeit auf den Punkt zwischen deinen Augenbrauen. Still, konzentriert und gelassen.",
+                    breathPhase = "Halten (4s)"
+                ),
+                GuidedStep(
+                    title = "Energie freisetzen",
+                    instruction = "Atme kraftvoll aus und spüre, wie neue, gelassene Tatkraft in deine Hände und deinen Geist strömt.",
+                    breathPhase = "Ausatmen (6s)"
+                )
+            )
+        ),
+        Meditation(
             id = "sleep_1",
-            title = "Gedankenstille zur Nacht",
-            subtitle = "Sanftes Loslassen des Tages in tiefen Schlaf",
+            title = "Gedankenstille zur Nacht (Deep Sleep)",
+            subtitle = "Sanftes Loslassen des Tages in tiefen Schlaf (396Hz)",
             description = "Schließe den Tag in Frieden ab. Entlasse alle to-dos und offenen Fragen in die Nacht. Bereite Körper und Geist auf erholsamen Tiefschlaf vor.",
             category = "Einschlafhilfe",
             defaultMinutes = 10,
             iconEmoji = "🌙",
             ambientFrequencyHz = 396.0,
+            isProOnly = true,
             guidedSteps = listOf(
                 GuidedStep(
                     title = "Den Tag verabschieden",
@@ -119,29 +151,86 @@ object MeditationCatalog {
             )
         ),
         Meditation(
-            id = "balance_1",
-            title = "Zentrierung & Fokus",
-            subtitle = "Harmonie zwischen Herz, Verstand und Tatkraft",
-            description = "Eine erfrischende Auszeit, um deine mentale Mitte wiederzufinden. Bringt Ausgeglichenheit und frische Motivation für deine nächsten Vorhaben.",
-            category = "Ausgeglichenheit",
-            defaultMinutes = 5,
-            iconEmoji = "⚡",
-            ambientFrequencyHz = 432.0,
+            id = "pro_theta_transformation",
+            title = "Theta-Trance: Glaubenssätze lösen",
+            subtitle = "Tiefe Unterbewusstseins-Harmonisierung (528Hz Love Freq)",
+            description = "Exklusives PRO-Audio: Nutze die 528Hz Solfeggio-Resonanz, um tief sitzende Selbstzweifel und Blockaden in liebevolle Klarheit zu transformieren.",
+            category = "Achtsamkeit",
+            defaultMinutes = 12,
+            iconEmoji = "👑",
+            ambientFrequencyHz = 528.0,
+            isProOnly = true,
             guidedSteps = listOf(
                 GuidedStep(
-                    title = "Aufrichtung & Klarheit",
-                    instruction = "Spüre den Boden unter deinen Füßen. Richte deinen Scheitelpunkt nach oben. Atme Frische und Weite ein.",
+                    title = "Alpha-Theta Induktion",
+                    instruction = "Entspanne deine Augenlider vollkommen. Spüre die 528Hz Resonanz wie eine warme Welle durch dein Herz fließen.",
                     breathPhase = "Einatmen (4s)"
                 ),
                 GuidedStep(
-                    title = "Fokus im Zentrum",
-                    instruction = "Bündle deine Aufmerksamkeit auf den Punkt zwischen deinen Augenbrauen. Still, konzentriert und gelassen.",
+                    title = "Alte Glaubensmuster loslassen",
+                    instruction = "Erkenne den Satz 'Ich muss perfekt sein'. Atme ihn aus und lasse ihn wie Asche im Wind verwehen.",
+                    breathPhase = "Ausatmen (6s)"
+                ),
+                GuidedStep(
+                    title = "Verankerung der Gelassenheit",
+                    instruction = "Setze deinen neuen Anker: 'Ich bin vollkommen sicher im Hier und Jetzt. Mein Wert ist unantastbar.'",
                     breathPhase = "Halten (4s)"
                 ),
                 GuidedStep(
-                    title = "Energie freisetzen",
-                    instruction = "Atme kraftvoll aus und spüre, wie neue, gelassene Tatkraft in deine Hände und deinen Geist strömt.",
+                    title = "Integrierte Stille",
+                    instruction = "Bade in der Frequenz der Transformation. Du ruhst in deiner unzerstörbaren Kraft.",
+                    breathPhase = "Ruhen (2s)"
+                )
+            )
+        ),
+        Meditation(
+            id = "pro_vagus_release",
+            title = "Somatic Vagus Tiefen-Entlastung",
+            subtitle = "Neurovegetatives Nervensystem auf Sicherheit kalibrieren",
+            description = "Spezielle somatische Anleitung, um den Vagusnerv sofort zu aktivieren. Senkt den Blutdruck, löst Magenspannungen und stellt tiefe biologische Erholung her.",
+            category = "Stressabbau",
+            defaultMinutes = 15,
+            iconEmoji = "🧬",
+            ambientFrequencyHz = 432.0,
+            isProOnly = true,
+            guidedSteps = listOf(
+                GuidedStep(
+                    title = "Okulokardialer Vagus-Reflex",
+                    instruction = "Halte den Kopf gerade und bewege nur die Augen ganz nach rechts. Atme tief ein und warte auf ein spontanes Seufzen oder Schlucken.",
+                    breathPhase = "Einatmen (4s)"
+                ),
+                GuidedStep(
+                    title = "Zwerchfell-Entlastung",
+                    instruction = "Lege beide Hände auf deinen Rippenbogen. Spüre, wie der Atem sich 360 Grad dreidimensional ausdehnt.",
                     breathPhase = "Ausatmen (6s)"
+                ),
+                GuidedStep(
+                    title = "Ventraler Zustand",
+                    instruction = "Dein Nervensystem meldet nun die höchste biologische Stufe: Soziale Verbundenheit und tiefe Sicherheit.",
+                    breathPhase = "Ruhen (2s)"
+                )
+            )
+        ),
+        Meditation(
+            id = "pro_soundbath_pure",
+            title = "Reines Klangbad: 432Hz Ambient Flow",
+            subtitle = "Einfach nur zuhören – ohne Sprache, nur Frequenzen",
+            description = "Exklusives reines Hörerlebnis für Meditation, Yoga, Tiefenentspannung oder Schlaf. Pure harmonische Resonanz ohne gesprochene Führung.",
+            category = "Soundbath",
+            defaultMinutes = 20,
+            iconEmoji = "🎧",
+            ambientFrequencyHz = 432.0,
+            isProOnly = true,
+            guidedSteps = listOf(
+                GuidedStep(
+                    title = "Eintauchen in den Klangteppich",
+                    instruction = "Schließe die Augen, setze Kopfhörer auf und lasse die 432Hz Welle sanft deinen gesamten Körper umhüllen.",
+                    breathPhase = "Stille"
+                ),
+                GuidedStep(
+                    title = "Reines Sein",
+                    instruction = "Nichts zu tun, nichts zu erreichen. Nur Schwingung, Raum und friedvolle Stille.",
+                    breathPhase = "Stille"
                 )
             )
         )

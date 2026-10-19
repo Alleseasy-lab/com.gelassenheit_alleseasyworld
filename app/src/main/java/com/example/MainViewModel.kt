@@ -1,12 +1,20 @@
 package com.example
 
 import android.app.Application
+import android.content.Context
+import android.os.Build
+import android.os.Bundle
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.AppDatabase
 import com.example.data.AppRepository
 import com.example.data.Challenge
 import com.example.data.GratitudeEntry
+import com.example.data.MilestoneCatalog
+import com.example.data.MilestoneReward
+import com.example.data.UserGoal
 import com.example.meditation.Meditation
 import com.example.meditation.MeditationAudioEngine
 import com.example.meditation.MeditationCatalog
@@ -15,24 +23,98 @@ import com.example.mindfulness.SenseExercise
 import com.example.podcast.PodcastCatalog
 import com.example.podcast.PodcastChapter
 import com.example.podcast.PodcastEpisode
+import com.example.ui.pro.ProPlan
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
-class MainViewModel(application: Application) : AndroidViewModel(application) {
+class MainViewModel(application: Application) : AndroidViewModel(application), TextToSpeech.OnInitListener {
     private val database = AppDatabase.getDatabase(application, viewModelScope)
     private val repository = AppRepository(
         database.gratitudeDao(),
         database.challengeDao(),
-        database.meditationDao()
+        database.meditationDao(),
+        database.goalDao()
     )
 
+    private val sharedPrefs = application.getSharedPreferences("gelassenheit_prefs", Context.MODE_PRIVATE)
+
+    // ─── Monetization / PRO State ─────────────────────────────────────────────
+    private val _isProUser = MutableStateFlow(sharedPrefs.getBoolean("is_pro_unlocked", false))
+    val isProUser: StateFlow<Boolean> = _isProUser.asStateFlow()
+
+    private val _showPaywall = MutableStateFlow(false)
+    val showPaywall: StateFlow<Boolean> = _showPaywall.asStateFlow()
+
+    fun openPaywall() {
+        _showPaywall.value = true
+    }
+
+    fun closePaywall() {
+        _showPaywall.value = false
+    }
+
+    fun unlockPro(plan: ProPlan) {
+        sharedPrefs.edit().putBoolean("is_pro_unlocked", true).apply()
+        _isProUser.value = true
+    }
+
+    fun resetProStatus() {
+        sharedPrefs.edit().putBoolean("is_pro_unlocked", false).apply()
+        _isProUser.value = false
+    }
+
     val audioEngine = MeditationAudioEngine()
+
+    // ─── Streak Days State ───────────────────────────────────────────────────
+    private val _streakDays = MutableStateFlow(sharedPrefs.getInt("user_streak_days", 3))
+    val streakDays: StateFlow<Int> = _streakDays.asStateFlow()
+
+    fun recordStreakActivity() {
+        val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        val lastActivityDate = sharedPrefs.getString("last_activity_date", "")
+
+        if (lastActivityDate != todayStr) {
+            val currentStreak = sharedPrefs.getInt("user_streak_days", 3)
+            val newStreak = currentStreak + 1
+            sharedPrefs.edit()
+                .putString("last_activity_date", todayStr)
+                .putInt("user_streak_days", newStreak)
+                .apply()
+            _streakDays.value = newStreak
+        }
+    }
+
+    // ─── TTS Voice Narration Engine ──────────────────────────────────────────
+    private var tts: TextToSpeech? = TextToSpeech(application, this)
+    private var isTtsInitialized = false
+
+    override fun onInit(status: Int) {
+        if (status == TextToSpeech.SUCCESS) {
+            val result = tts?.setLanguage(Locale.GERMAN)
+            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                tts?.setLanguage(Locale.getDefault())
+            }
+            tts?.setSpeechRate(_podcastPlaybackSpeed.value)
+            tts?.setPitch(1.0f)
+            isTtsInitialized = true
+
+            // If user already pressed play before TTS finished loading
+            if (_isPodcastPlaying.value) {
+                speakCurrentPodcastChapter()
+            }
+        }
+    }
 
     // Challenges State
     val challenges: StateFlow<List<Challenge>> = repository.allChallenges
@@ -48,8 +130,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val gratitudeEntries: StateFlow<List<GratitudeEntry>> = repository.allGratitudeEntries
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // ─── Goal Tracker State ───────────────────────────────────────────────────
+    val allGoals: StateFlow<List<UserGoal>> = repository.allGoals
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val completedGoalsCount: StateFlow<Int> = repository.completedGoalsCount
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val totalGoalsCount: StateFlow<Int> = repository.totalGoalsCount
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val totalMeditationSeconds: StateFlow<Int> = repository.totalMeditationSeconds
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    // Dynamic Milestone Rewards calculated reactively
+    val milestones: StateFlow<List<MilestoneReward>> = combine(
+        repository.totalMeditationSeconds,
+        repository.allGratitudeEntries,
+        repository.completedChallengesCount,
+        repository.completedGoalsCount,
+        _streakDays
+    ) { medSecs, gratitudes, compChallenges, compGoals, streak ->
+        MilestoneCatalog.computeMilestones(
+            totalMeditationSeconds = medSecs,
+            gratitudeCount = gratitudes.size,
+            completedChallengesCount = compChallenges,
+            completedGoalsCount = compGoals,
+            streakDays = streak
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // ─── Podcast State ────────────────────────────────────────────────────────
-    val podcastEpisode: StateFlow<PodcastEpisode> = MutableStateFlow(PodcastCatalog.currentEpisode).asStateFlow()
+    private val _podcastEpisode = MutableStateFlow(PodcastCatalog.currentEpisode)
+    val podcastEpisode: StateFlow<PodcastEpisode> = _podcastEpisode.asStateFlow()
+
+    val allPodcastEpisodes: StateFlow<List<PodcastEpisode>> = MutableStateFlow(PodcastCatalog.allEpisodes).asStateFlow()
 
     private val _isPodcastPlaying = MutableStateFlow(false)
     val isPodcastPlaying: StateFlow<Boolean> = _isPodcastPlaying.asStateFlow()
@@ -64,6 +179,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val currentPodcastChapterIndex: StateFlow<Int> = _currentPodcastChapterIndex.asStateFlow()
 
     private var podcastJob: Job? = null
+
+    fun selectPodcastEpisode(episode: PodcastEpisode) {
+        if (episode.isProOnly && !_isProUser.value) {
+            _showPaywall.value = true
+            return
+        }
+        pausePodcast()
+        _podcastEpisode.value = episode
+        _podcastPositionSeconds.value = 0
+        _currentPodcastChapterIndex.value = 0
+    }
 
     // ─── Active Mindfulness Sensory Exercise State ───────────────────────────
     private val _activeSenseExercise = MutableStateFlow<SenseExercise?>(null)
@@ -110,31 +236,54 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun speakCurrentPodcastChapter() {
+        if (!isTtsInitialized) return
+        val episode = podcastEpisode.value
+        val chapIndex = _currentPodcastChapterIndex.value.coerceIn(0, episode.chapters.size - 1)
+        val chapter = episode.chapters[chapIndex]
+        val textToSpeak = if (chapter.narration.isNotBlank()) chapter.narration else chapter.summary
+
+        tts?.setSpeechRate(_podcastPlaybackSpeed.value)
+        val params = Bundle().apply {
+            putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 0.9f)
+        }
+        tts?.speak(textToSpeak, TextToSpeech.QUEUE_FLUSH, params, "podcast_chap_$chapIndex")
+    }
+
     fun startPodcast() {
         if (_isPodcastPlaying.value) return
         _isPodcastPlaying.value = true
-        // Play smooth ambient resonance in background while podcast is active
-        audioEngine.startAmbient(frequencyHz = 432.0, volume = 0.25f)
+
+        // Smooth 432Hz ambient frequency background
+        audioEngine.startAmbient(frequencyHz = 432.0, volume = 0.22f)
+
+        // Voice narration for active chapter
+        speakCurrentPodcastChapter()
 
         podcastJob?.cancel()
         podcastJob = viewModelScope.launch {
             val total = podcastEpisode.value.durationSeconds
+            var lastSpokenChapter = _currentPodcastChapterIndex.value
+
             while (_isPodcastPlaying.value && _podcastPositionSeconds.value < total) {
-                val delayMs = (1000L / _podcastPlaybackSpeed.value).toLong()
-                delay(delayMs)
-                val newPos = _podcastPositionSeconds.value + 1
-                _podcastPositionSeconds.value = newPos
+                delay(1000L)
+                _podcastPositionSeconds.value = (_podcastPositionSeconds.value + 1).coerceIn(0, total)
 
                 // Update active chapter
                 val chapters = podcastEpisode.value.chapters
-                val activeChap = chapters.indexOfLast { it.timeSeconds <= newPos }.coerceAtLeast(0)
+                val activeChap = chapters.indexOfLast { it.timeSeconds <= _podcastPositionSeconds.value }.coerceAtLeast(0)
                 if (activeChap != _currentPodcastChapterIndex.value) {
                     _currentPodcastChapterIndex.value = activeChap
+                    if (activeChap != lastSpokenChapter) {
+                        lastSpokenChapter = activeChap
+                        speakCurrentPodcastChapter()
+                    }
                 }
             }
             if (_podcastPositionSeconds.value >= total) {
                 _isPodcastPlaying.value = false
                 audioEngine.stop()
+                tts?.stop()
             }
         }
     }
@@ -143,13 +292,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _isPodcastPlaying.value = false
         podcastJob?.cancel()
         audioEngine.stop()
+        tts?.stop()
     }
 
     fun seekPodcastTo(seconds: Int) {
         val bounded = seconds.coerceIn(0, podcastEpisode.value.durationSeconds)
         _podcastPositionSeconds.value = bounded
+
         val chapters = podcastEpisode.value.chapters
-        _currentPodcastChapterIndex.value = chapters.indexOfLast { it.timeSeconds <= bounded }.coerceAtLeast(0)
+        val newChapIdx = chapters.indexOfLast { it.timeSeconds <= bounded }.coerceAtLeast(0)
+        val changedChapter = newChapIdx != _currentPodcastChapterIndex.value
+        _currentPodcastChapterIndex.value = newChapIdx
+
+        if (_isPodcastPlaying.value && changedChapter) {
+            speakCurrentPodcastChapter()
+        }
     }
 
     fun skipPodcast(secondsDelta: Int) {
@@ -160,19 +317,96 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         seekPodcastTo(chapter.timeSeconds)
         if (!_isPodcastPlaying.value) {
             startPodcast()
+        } else {
+            speakCurrentPodcastChapter()
         }
     }
 
     fun cyclePodcastSpeed() {
-        _podcastPlaybackSpeed.value = when (_podcastPlaybackSpeed.value) {
+        val newSpeed = when (_podcastPlaybackSpeed.value) {
             1.0f -> 1.25f
             1.25f -> 1.5f
             else -> 1.0f
+        }
+        _podcastPlaybackSpeed.value = newSpeed
+        tts?.setSpeechRate(newSpeed)
+    }
+
+    // ─── Goal Tracker Actions ────────────────────────────────────────────────
+    fun addGoal(
+        title: String,
+        description: String = "",
+        targetType: String = "CUSTOM",
+        targetValue: Int = 1,
+        unit: String = "Einheit",
+        period: String = "DAILY",
+        iconEmoji: String = "🎯",
+        category: String = "Gelassenheit"
+    ) {
+        viewModelScope.launch {
+            repository.addGoal(
+                UserGoal(
+                    title = title,
+                    description = description,
+                    targetType = targetType,
+                    targetValue = targetValue.coerceAtLeast(1),
+                    currentValue = 0,
+                    unit = unit,
+                    period = period,
+                    iconEmoji = iconEmoji,
+                    category = category,
+                    isCompleted = false
+                )
+            )
+        }
+    }
+
+    fun deleteGoal(goal: UserGoal) {
+        viewModelScope.launch {
+            repository.deleteGoal(goal)
+        }
+    }
+
+    fun incrementGoalProgress(goal: UserGoal, delta: Int = 1) {
+        viewModelScope.launch {
+            repository.incrementGoalProgress(goal, delta)
+            recordStreakActivity()
+            if (goal.currentValue + delta >= goal.targetValue && !goal.isCompleted) {
+                audioEngine.playSingingBowlBell()
+            }
+        }
+    }
+
+    fun toggleGoalComplete(goal: UserGoal) {
+        viewModelScope.launch {
+            val willBeCompleted = !goal.isCompleted
+            repository.toggleGoalComplete(goal)
+            if (willBeCompleted) {
+                recordStreakActivity()
+                audioEngine.playSingingBowlBell()
+            }
+        }
+    }
+
+    fun playRewardSingingBowl() {
+        audioEngine.playSingingBowlBell()
+    }
+
+    private fun syncGoalsForType(targetType: String, delta: Int = 1) {
+        viewModelScope.launch {
+            val currentGoals = allGoals.value
+            currentGoals.filter { it.targetType == targetType && !it.isCompleted }.forEach { goal ->
+                repository.incrementGoalProgress(goal, delta)
+            }
         }
     }
 
     // ─── Mindfulness Sense Exercises Actions ──────────────────────────────────
     fun openSenseExercise(exercise: SenseExercise) {
+        if (exercise.isProOnly && !_isProUser.value) {
+            _showPaywall.value = true
+            return
+        }
         _activeSenseExercise.value = exercise
         _senseExerciseDuration.value = exercise.practiceDurationSeconds
         _senseExerciseRemaining.value = exercise.practiceDurationSeconds
@@ -223,6 +457,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _isSenseExercisePlaying.value = false
                 audioEngine.stop()
                 audioEngine.playSingingBowlBell()
+                recordStreakActivity()
+                syncGoalsForType("MINDFULNESS", 1)
             }
         }
     }
@@ -242,7 +478,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // ─── Challenges Actions ───────────────────────────────────────────────────
     fun toggleChallenge(challenge: Challenge) {
         viewModelScope.launch {
+            val willBeCompleted = !challenge.isCompleted
             repository.toggleChallenge(challenge)
+            if (willBeCompleted) {
+                recordStreakActivity()
+                syncGoalsForType("CHALLENGE", 1)
+                audioEngine.playSingingBowlBell()
+            }
         }
     }
 
@@ -272,6 +514,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     category = category
                 )
             )
+            recordStreakActivity()
+            syncGoalsForType("GRATITUDE", 1)
+            audioEngine.playSingingBowlBell()
         }
     }
 
@@ -283,6 +528,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // ─── Meditation Actions ───────────────────────────────────────────────────
     fun openMeditation(meditation: Meditation, customMinutes: Int = meditation.defaultMinutes) {
+        if (meditation.isProOnly && !_isProUser.value) {
+            _showPaywall.value = true
+            return
+        }
         _activeMeditation.value = meditation
         _meditationDurationSeconds.value = customMinutes * 60
         _meditationRemainingSeconds.value = customMinutes * 60
@@ -332,11 +581,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _isMeditationPlaying.value = false
                 audioEngine.stop()
                 audioEngine.playSingingBowlBell()
+                val medMinutes = _meditationDurationSeconds.value / 60
                 repository.recordMeditationSession(
                     title = med.title,
                     category = med.category,
                     durationSeconds = _meditationDurationSeconds.value
                 )
+                recordStreakActivity()
+                syncGoalsForType("MEDITATION", medMinutes)
             }
         }
     }
@@ -356,6 +608,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     override fun onCleared() {
         super.onCleared()
         audioEngine.stop()
+        tts?.stop()
+        tts?.shutdown()
+        tts = null
         podcastJob?.cancel()
         senseJob?.cancel()
         timerJob?.cancel()
